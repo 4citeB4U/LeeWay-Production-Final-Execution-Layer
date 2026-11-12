@@ -42,3 +42,41 @@ test('unknown authority stage denied',()=>{const p=packet();p.proofs.push({...p.
 test('source drift denied',()=>{const p=packet();p.correlation.sourceCommit='c'.repeat(40);assert.equal(inspectReleaseHandoff(p).state,'PREPARATION_ONLY')});
 test('CI cannot authorize release',()=>{const p=packet();p.release.approvalFromCi=true;assert.equal(inspectReleaseHandoff(p).state,'HOLD_SECURITY')});
 test('invalid source artifact digest blocked',()=>{const p=packet();p.source.artifactSha256='bad';assert.equal(inspectReleaseHandoff(p).state,'PREPARATION_ONLY')});
+
+const devicePacket=()=>{
+ const p=packet();
+ p.source.repository='4citeB4U/Leeway-Digital-Brain-Diagnostincs-pkg';
+ p.deviceProduct={family:'digital-brain',attachment:'DESTINATION_DEVICE_EXCLUSIVE',
+  destinationDeviceId:p.target.id,nativeEnrollment:'PENDING_NATIVE_DEVICE_ATTESTATION',
+  nativePathsResidence:'DESTINATION_DEVICE_ONLY',crossDeviceIndexReuse:false,
+  offDeviceExportDefault:false,osAndHumanConsent:'REQUIRED_INDEPENDENTLY',sourceOnly:true};
+ return p;
+};
+test('device-exclusive Brain release may enter source review, never execution',()=>{
+ const r=inspectReleaseHandoff(devicePacket());
+ assert.equal(r.state,'REVIEW_INTAKE_CANDIDATE');
+ assert.equal(r.productionAuthorized,false);
+});
+test('device-exclusive diagnostics source must name its specific destination',()=>{
+ const p=devicePacket();p.deviceProduct.family='diagnostics';
+ p.deviceProduct.destinationDeviceId='other-device';
+ assert.equal(inspectReleaseHandoff(p).reason,'DEVICE_EXCLUSIVE_DESTINATION_BOUNDARY_INVALID');
+});
+test('device Brain cannot copy another machine index',()=>{
+ const p=devicePacket();p.deviceProduct.crossDeviceIndexReuse=true;
+ assert.equal(inspectReleaseHandoff(p).state,'HOLD_SECURITY');
+});
+test('claimed native attestation and complete file index are forbidden in source candidate',()=>{
+ for(const field of ['verifiedNativeIdentity','claimsPhysicalIndexComplete']){
+  const p=devicePacket();p.deviceProduct[field]=true;
+  assert.equal(inspectReleaseHandoff(p).reason,'DEVICE_EXCLUSIVE_NATIVE_AUTHORITY_FORGED');
+ }
+});
+test('private native paths cannot be embedded in public release packet',()=>{
+ const p=devicePacket();p.deviceProduct.localPathsIncludedInPublicPacket=true;
+ assert.equal(inspectReleaseHandoff(p).state,'HOLD_SECURITY');
+});
+test('hardware-agnostic products cannot claim device-exclusive ownership',()=>{
+ const p=packet();p.deviceProduct={attachment:'DESTINATION_DEVICE_EXCLUSIVE'};
+ assert.equal(inspectReleaseHandoff(p).reason,'NON_DEVICE_SOURCE_CANNOT_CLAIM_EXCLUSIVE_PRODUCT');
+});

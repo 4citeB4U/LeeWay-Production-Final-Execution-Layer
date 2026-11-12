@@ -7,8 +7,8 @@ WHAT = Source-only fail-closed review-intake preflight for a governed LeeWay mar
 WHY = Never let an ungoverned file, API, model, agent or orphaned CI result auto-promote to a deployment.
 WHO = Production & Final Execution Layer, under Runtime and Standards authority.
 WHERE = src/governed-handoff-preflight.mjs.
-WHEN = 2026-11-11.
-HOW = Schema, source identity, proof correlation, stage dependency and denial regression; no credential or deployment calls.
+WHEN = 2026-11-11; Creator device-exclusive amendment and source intake review.
+HOW = Schema, source identity, device-exclusive destination, stage proof and negative regression; no credential/deployment calls.
 LICENSE: Not asserted; repository license pending explicit owner decision.
 AUTHORITY: PREPARATION/REVIEW INTAKE ONLY. Not Veritas, Receipt writer, or deployment authorization.
 */
@@ -44,6 +44,27 @@ export function inspectReleaseHandoff(packet){
   return result('PREPARATION_ONLY','ORIGINAL_SOURCE_IDENTITY_INVALID');
  if(!ID.test(packet.target?.id||'')||!SHA256.test(packet.target?.rollbackPlanSha256||''))
   return result('PREPARATION_ONLY','TARGET_OR_ROLLBACK_UNQUALIFIED');
+
+ const deviceOnlySource=packet.source.repository==='4citeB4U/Leeway-Digital-Brain-Diagnostincs-pkg';
+ if(deviceOnlySource){
+   const product=packet.deviceProduct;
+   if(!product||!['digital-brain','diagnostics','combined-device-package'].includes(product.family)||
+      product.attachment!=='DESTINATION_DEVICE_EXCLUSIVE'||
+      product.destinationDeviceId!==packet.target.id||
+      product.nativeEnrollment!=='PENDING_NATIVE_DEVICE_ATTESTATION'||
+      product.nativePathsResidence!=='DESTINATION_DEVICE_ONLY'||
+      product.crossDeviceIndexReuse!==false||
+      product.offDeviceExportDefault!==false||
+      product.osAndHumanConsent!=='REQUIRED_INDEPENDENTLY'||
+      product.sourceOnly!==true)
+     return result('HOLD_SECURITY','DEVICE_EXCLUSIVE_DESTINATION_BOUNDARY_INVALID');
+   if(product.verifiedNativeIdentity===true||product.claimsPhysicalIndexComplete===true||
+      product.localPathsIncludedInPublicPacket===true||
+      product.humanConsentBypassed===true)
+     return result('HOLD_SECURITY','DEVICE_EXCLUSIVE_NATIVE_AUTHORITY_FORGED');
+ }else if(packet.deviceProduct?.attachment==='DESTINATION_DEVICE_EXCLUSIVE')
+   return result('HOLD_SECURITY','NON_DEVICE_SOURCE_CANNOT_CLAIM_EXCLUSIVE_PRODUCT');
+
  if(packet.agent?.registered!==true||!ID.test(packet.agent?.id||'')||
     packet.agent?.directModelExecution===true||packet.api?.governed!==true||
     packet.files?.governed!==true||packet.agent?.bypassedGovernance===true)
