@@ -1,0 +1,31 @@
+# LEEWAY HEADER — DO NOT REMOVE
+# REGION: LEEWAY.PRODUCTION.CI
+# TAG: LEEWAY.PRODUCTION.CI.RELEASE_GATE.V1
+# DISCOVERY_PIPELINE: Voice → Intent → Location → Vertical → Ranking → Render
+# 5WH:
+# WHAT = Run Node 24 fail-closed Production release gate tests on every push and pull_request.
+# WHY = Ensure Sovereign Constitution, independent Veritas gating, OS Trust hold enforcement, and SQLite WAL replay custody are CI-verified.
+# WHO = Creator / LeeWay Production & Final Execution Layer CI.
+# WHERE = .github/workflows/production-release-gate.yml
+# WHEN = 2026-11-12
+# HOW = Syntax check plus Node built-in tests on node-version 24.
+# LICENSE: MIT
+name: Production Release Gate
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  production-release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: |
+          node --check scripts/enforce-sovereign-colony-constitution.mjs
+          node --check src/production-release-gate.mjs
+          node --test tests/production-release-gate.test.mjs
