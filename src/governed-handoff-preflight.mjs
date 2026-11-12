@@ -2,8 +2,9 @@
 LEEWAY HEADER — DO NOT REMOVE
 REGION: LEEWAY.PRODUCTION.GOVERNED_HANDOFF
 TAG: LEEWAY.PRODUCTION.REVIEW_INTAKE_PREFLIGHT_V1
+DISCOVERY_PIPELINE: Voice → Intent → Location → Vertical → Ranking → Render
 5WH:
-WHAT = Source-only fail-closed review-intake preflight for a governed LeeWay marketable product.
+WHAT = Source-only guarded release preflight, including the device-exclusive Brain/Diagnostics exception.
 WHY = Never let an ungoverned file, API, model, agent or orphaned CI result auto-promote to a deployment.
 WHO = Production & Final Execution Layer, under Runtime and Standards authority.
 WHERE = src/governed-handoff-preflight.mjs.

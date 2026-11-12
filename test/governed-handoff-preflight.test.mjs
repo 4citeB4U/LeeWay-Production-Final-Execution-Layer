@@ -2,12 +2,13 @@
 LEEWAY HEADER — DO NOT REMOVE
 REGION: LEEWAY.PRODUCTION.GOVERNED_HANDOFF.TEST
 TAG: LEEWAY.PRODUCTION.REVIEW_INTAKE_NEGATIVE_TEST_V1
+DISCOVERY_PIPELINE: Voice → Intent → Location → Vertical → Ranking → Render
 5WH:
-WHAT = Exercise positive/negative source packet governance boundaries.
+WHAT = Exercise 18 source packet and device-exclusive destination denial cases.
 WHY = An LLM's or CI's success claim must never become permission to deploy.
 WHO = Production source maintainer.
 WHERE = test/governed-handoff-preflight.test.mjs.
-WHEN = 2026-11-11.
+WHEN = 2026-11-11, Creator device-exclusive extension of original source suite.
 HOW = Deterministic fabricated fixtures only, not independent authority execution.
 LICENSE: Not asserted; repository license pending owner decision.
 */

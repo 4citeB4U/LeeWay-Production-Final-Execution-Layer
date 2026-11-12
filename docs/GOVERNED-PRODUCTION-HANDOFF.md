@@ -2,13 +2,14 @@
 LEEWAY HEADER — DO NOT REMOVE
 REGION: LEEWAY.PRODUCTION.GOVERNED_HANDOFF
 TAG: LEEWAY.PRODUCTION.SOURCE_REVIEW_INGRESS_V1
+DISCOVERY_PIPELINE: Voice → Intent → Location → Vertical → Ranking → Render
 5WH:
 WHAT=Document a deterministic, fail-closed candidate intake for full-market release.
 WHY=Never bypass Standards, source evidence, independent Veritas, Receipt, learning, rollback or deployed POST.
 WHO=Production & Final Execution Layer source custodian.
 WHERE=docs/GOVERNED-PRODUCTION-HANDOFF.md.
-WHEN=2026-11-11.
-HOW=Source-only packet validator, 12 negative tests, three-OS CI with retained SHA-256 artifacts.
+WHEN = 2026-11-11, constitutional device-only product release amendment.
+HOW = Source-only packet validator, 18 deterministic tests, three-OS CI with retained SHA-256 artifacts.
 LICENSE: Not asserted pending owner license review.
 -->
 # Governed release intake — source contract, not a deployed service
