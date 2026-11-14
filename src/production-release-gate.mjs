@@ -45,6 +45,7 @@ export function openPromotionAuditWalStore(dbPath) {
   `);
 
   const findStmt = db.prepare('SELECT promotion_key FROM promotion_decisions WHERE promotion_key = ?');
+  const decisionStmt = db.prepare('SELECT promotion_key, source_repo, source_commit, veritas_receipt_sha256, status, decided_at FROM promotion_decisions WHERE promotion_key = ?');
   const insertStmt = db.prepare(`
     INSERT INTO promotion_decisions (
       promotion_key, source_repo, source_commit, veritas_receipt_sha256, status, decided_at
@@ -71,7 +72,7 @@ export function openPromotionAuditWalStore(dbPath) {
     },
 
     getDecision(promotionKey) {
-      return findStmt.get(String(promotionKey)) || null;
+      return decisionStmt.get(String(promotionKey)) || null;
     },
 
     close() {
@@ -80,7 +81,7 @@ export function openPromotionAuditWalStore(dbPath) {
   };
 }
 
-export function evaluateProductionPromotion(handoff = {}, { walStore, dbPath } = {}) {
+export async function evaluateProductionPromotion(handoff = {}, { walStore, dbPath, admissionProvider } = {}) {
   const blockers = [];
 
   if (!handoff || typeof handoff !== 'object' || Array.isArray(handoff)) {
@@ -149,6 +150,49 @@ export function evaluateProductionPromotion(handoff = {}, { walStore, dbPath } =
     };
   }
 
+  // The handoff contains self-asserted booleans and digest-shaped strings. They
+  // are not a Veritas signature, Receipt Authority readback, or creator grant.
+  // Only a provider injected by the owner-controlled Runtime may perform the
+  // original authority lookups. Missing/failed provider cannot authorize release.
+  if (typeof admissionProvider?.verifyOriginalCustody !== 'function') {
+    return {
+      promoted: false,
+      handoffAccepted: false,
+      status: 'HOLD_FOR_CANONICAL_ADMISSION',
+      persistenceMode: PRODUCTION_GATE_PERSISTENCE_MODE,
+      blockers: ['ORIGINAL_AUTHORITY_READBACK_PROVIDER_UNBOUND']
+    };
+  }
+  let admitted;
+  try {
+    admitted = await admissionProvider.verifyOriginalCustody({
+      sourceRepository: handoff.sourceRepository,
+      sourceCommitSha: handoff.sourceCommitSha,
+      veritasReceiptSha256: handoff.veritas.veritasReceiptSha256,
+      canonicalReceiptSha256: handoff.receiptAuthority.canonicalReceiptSha256,
+      candidateEvidenceReceiptSha256: handoff.candidateEvidenceReceiptSha256
+    });
+  } catch {
+    admitted = null;
+  }
+  if (admitted?.originalVeritasReadbackVerified !== true ||
+      admitted?.originalReceiptAuthorityReadbackVerified !== true ||
+      admitted?.creatorReleaseGrantVerified !== true ||
+      admitted?.sourceCommitSha !== handoff.sourceCommitSha ||
+      admitted?.veritasReceiptSha256 !== handoff.veritas.veritasReceiptSha256 ||
+      admitted?.canonicalReceiptSha256 !== handoff.receiptAuthority.canonicalReceiptSha256) {
+    return {
+      promoted: false,
+      handoffAccepted: false,
+      status: 'HOLD_FOR_CANONICAL_ADMISSION',
+      persistenceMode: PRODUCTION_GATE_PERSISTENCE_MODE,
+      blockers: ['ORIGINAL_AUTHORITY_READBACK_UNQUALIFIED']
+    };
+  }
+
+  // This is a *handoff acceptance gate*. Even genuine readback is not OS
+  // installation or post-deployment observation. The original Production Fabric
+  // owns the distinct, owner-controlled DEPLOYMENT_AUTHORIZED/DEPLOYED_VERIFIED steps.
   const promotionKey = createHash('sha256')
     .update(JSON.stringify({
       sourceRepository: handoff.sourceRepository,
@@ -166,7 +210,7 @@ export function evaluateProductionPromotion(handoff = {}, { walStore, dbPath } =
       sourceRepo: handoff.sourceRepository,
       sourceCommit: handoff.sourceCommitSha,
       veritasReceiptSha256: handoff.veritas.veritasReceiptSha256,
-      status: 'DEPLOYMENT_AUTHORIZED'
+      status: 'READY_FOR_PRODUCTION_FABRIC_REVIEW'
     });
     if (!reserved.reserved) {
       return {
@@ -177,8 +221,9 @@ export function evaluateProductionPromotion(handoff = {}, { walStore, dbPath } =
     }
 
     return {
-      promoted: true,
-      status: 'DEPLOYMENT_AUTHORIZED',
+      promoted: false,
+      handoffAccepted: true,
+      status: 'READY_FOR_PRODUCTION_FABRIC_REVIEW',
       promotionKey,
       persistenceMode: PRODUCTION_GATE_PERSISTENCE_MODE,
       sourceRepository: handoff.sourceRepository,

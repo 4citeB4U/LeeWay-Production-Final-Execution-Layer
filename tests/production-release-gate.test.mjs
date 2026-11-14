@@ -87,19 +87,19 @@ function makeValidHandoff(overrides = {}) {
   };
 }
 
-test('PROMOTE_PRODUCTION blocks unverified Veritas, self-issued Veritas, OS security holds, and missing OS clearance', (t) => {
+test('PROMOTE_PRODUCTION blocks unverified Veritas, self-issued Veritas, OS security holds, and missing OS clearance', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'leeway-prod-gate-neg-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const dbPath = path.join(dir, 'prod.sqlite');
 
-  const noVeritas = evaluateProductionPromotion(
+  const noVeritas = await evaluateProductionPromotion(
     makeValidHandoff({ veritas: { qualified: false, veritasReceiptSha256: '' } }),
     { dbPath }
   );
   assert.equal(noVeritas.promoted, false);
   assert.ok(noVeritas.blockers.includes('INDEPENDENT_VERITAS_QUALIFICATION_REQUIRED'));
 
-  const selfVeritas = evaluateProductionPromotion(
+  const selfVeritas = await evaluateProductionPromotion(
     makeValidHandoff({
       veritas: {
         qualified: true,
@@ -113,7 +113,7 @@ test('PROMOTE_PRODUCTION blocks unverified Veritas, self-issued Veritas, OS secu
   assert.equal(selfVeritas.promoted, false);
   assert.ok(selfVeritas.blockers.includes('SELF_ISSUED_VERITAS_FORBIDDEN'));
 
-  const holdBinary = evaluateProductionPromotion(
+  const holdBinary = await evaluateProductionPromotion(
     makeValidHandoff({
       osTrust: {
         externalKeystoreCustody: false,
@@ -129,7 +129,7 @@ test('PROMOTE_PRODUCTION blocks unverified Veritas, self-issued Veritas, OS secu
   assert.ok(holdBinary.blockers.includes('OS_TRUST_PLATFORM_CLEARANCE_REQUIRED_HOLD_ACTIVE'));
 });
 
-test('PROMOTE_PRODUCTION admits qualified handoff once and persists SQLite WAL anti-replay across reopen', (t) => {
+test('qualified fixture readback stages a handoff once; it does not deploy', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'leeway-prod-gate-wal-'));
   let inspectStore;
   t.after(() => {
@@ -139,16 +139,49 @@ test('PROMOTE_PRODUCTION admits qualified handoff once and persists SQLite WAL a
   const dbPath = path.join(dir, 'prod-wal.sqlite');
 
   const handoff = makeValidHandoff();
-  const admitted = evaluateProductionPromotion(handoff, { dbPath });
-  assert.equal(admitted.promoted, true);
-  assert.equal(admitted.status, 'DEPLOYMENT_AUTHORIZED');
 
-  // Reopen WAL store to verify persistent custody and replay block
-  const replay = evaluateProductionPromotion(handoff, { dbPath });
+  // Self-declared qualified booleans and plausible digests must not confer
+  // production admission without the ORIGINAL independent provider.
+  const unbound = await evaluateProductionPromotion(handoff, { dbPath });
+  assert.equal(unbound.promoted, false);
+  assert.equal(unbound.handoffAccepted, false);
+  assert.ok(unbound.blockers.includes('ORIGINAL_AUTHORITY_READBACK_PROVIDER_UNBOUND'));
+
+  const forged = await evaluateProductionPromotion(handoff, { dbPath, admissionProvider: {
+    verifyOriginalCustody: async () => ({
+      originalVeritasReadbackVerified: true, originalReceiptAuthorityReadbackVerified: true,
+      creatorReleaseGrantVerified: true, sourceCommitSha: 'f'.repeat(40),
+      veritasReceiptSha256: handoff.veritas.veritasReceiptSha256,
+      canonicalReceiptSha256: handoff.receiptAuthority.canonicalReceiptSha256
+    })
+  } });
+  assert.equal(forged.promoted, false);
+  assert.ok(forged.blockers.includes('ORIGINAL_AUTHORITY_READBACK_UNQUALIFIED'));
+
+  // This TEST fixture represents a trusted host provider *interface* only;
+  // it is not an independent Veritas, owner grant or deployed Runtime.
+  const admissionProvider = {
+    verifyOriginalCustody: async (expected) => ({
+      originalVeritasReadbackVerified: true,
+      originalReceiptAuthorityReadbackVerified: true,
+      creatorReleaseGrantVerified: true,
+      sourceCommitSha: expected.sourceCommitSha,
+      veritasReceiptSha256: expected.veritasReceiptSha256,
+      canonicalReceiptSha256: expected.canonicalReceiptSha256
+    })
+  };
+  const admitted = await evaluateProductionPromotion(handoff, { dbPath, admissionProvider });
+  assert.equal(admitted.promoted, false);
+  assert.equal(admitted.handoffAccepted, true);
+  assert.equal(admitted.status, 'READY_FOR_PRODUCTION_FABRIC_REVIEW');
+
+  // Reopen WAL store to verify persistent handoff custody and replay block.
+  const replay = await evaluateProductionPromotion(handoff, { dbPath, admissionProvider });
   assert.equal(replay.promoted, false);
   assert.ok(replay.blockers.includes('PROMOTION_HANDOFF_REPLAY_REJECTED'));
 
   inspectStore = openPromotionAuditWalStore(dbPath);
   const persisted = inspectStore.getDecision(admitted.promotionKey);
   assert.equal(persisted.promotion_key, admitted.promotionKey);
+  assert.equal(persisted.status, 'READY_FOR_PRODUCTION_FABRIC_REVIEW');
 });
