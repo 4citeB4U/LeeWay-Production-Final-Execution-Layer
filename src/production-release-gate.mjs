@@ -45,6 +45,7 @@ export function openPromotionAuditWalStore(dbPath) {
   `);
 
   const findStmt = db.prepare('SELECT promotion_key FROM promotion_decisions WHERE promotion_key = ?');
+  const decisionStmt = db.prepare('SELECT promotion_key, source_repo, source_commit, veritas_receipt_sha256, status, decided_at FROM promotion_decisions WHERE promotion_key = ?');
   const insertStmt = db.prepare(`
     INSERT INTO promotion_decisions (
       promotion_key, source_repo, source_commit, veritas_receipt_sha256, status, decided_at
@@ -71,7 +72,7 @@ export function openPromotionAuditWalStore(dbPath) {
     },
 
     getDecision(promotionKey) {
-      return findStmt.get(String(promotionKey)) || null;
+      return decisionStmt.get(String(promotionKey)) || null;
     },
 
     close() {
