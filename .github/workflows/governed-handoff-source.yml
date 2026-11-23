@@ -1,0 +1,65 @@
+# LEEWAY HEADER — DO NOT REMOVE
+# REGION: LEEWAY.PRODUCTION.SOURCE_CI
+# TAG: LEEWAY.PRODUCTION.GOVERNED_HANDOFF_SOURCE_TESTS_V1
+# 5WH:
+# WHAT = Run source-only release-intake regressions with bounded SHA-256 evidence.
+# WHY = Fail closed on missing approvals and preserve both successful and failed tests.
+# WHO = Production source CI under LeeWay Standards.
+# WHERE = .github/workflows/governed-handoff-source.yml.
+# WHEN = 2026-11-11.
+# HOW = Node 22 OS matrix with uploaded always-run source evidence; no deploy secrets.
+# LICENSE: Not asserted; owner review required.
+name: Governed production handoff source
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  source:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute admission negative tests and record original source evidence
+        run: node scripts/capture-source-evidence.mjs
+      - name: Upload source evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: governed-production-source-${{ matrix.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local-evidence/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
+  evidence-index:
+    needs: source
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Fail if three original source artifacts are not indexed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner,repo}=context.repo;
+            const jobs=(await github.rest.actions.listJobsForWorkflowRun({owner,repo,run_id:context.runId,per_page:100})).data.jobs.filter(x=>x.name.startsWith('source ('));
+            let artifacts=[];
+            for(let i=0;i<5;i++){
+              artifacts=(await github.rest.actions.listWorkflowRunArtifacts({owner,repo,run_id:context.runId,per_page:100})).data.artifacts.filter(x=>x.name.startsWith('governed-production-source-'));
+              if(artifacts.length===3)break;
+              await new Promise(r=>setTimeout(r,1500));
+            }
+            const ok=jobs.length===3&&jobs.every(x=>x.conclusion==='success')&&artifacts.length===3&&artifacts.every(x=>x.size_in_bytes>0&&!x.expired);
+            await core.summary.addHeading('Governed source evidence: '+(ok?'INDEXED_SOURCE_ONLY':'CUSTODY_INCOMPLETE')).addRaw('Original run: '+context.runId+'; Jobs: '+jobs.length+'; Artifacts: '+artifacts.length+'. No Veritas/Receipt/Production admission.').write();
+            if(!ok)core.setFailed('SOURCE_EVIDENCE_MISSING_OR_TEST_FAILED');

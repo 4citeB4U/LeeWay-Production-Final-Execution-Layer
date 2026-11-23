@@ -1,0 +1,13 @@
+{
+  "name": "leeway-production-final-execution-source-gates",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only source preparation gate; not a deployment service",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
