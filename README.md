@@ -6,7 +6,9 @@ This repository is **not** a substitute for the canonical Runtime Fabric, a dupl
 
 ## Deployment handoff law
 
-A handoff packet must identify the source repository and immutable commit, approved deployment target, supported hosts and protocols, rollback, security and resource requirements, genuine test outcomes, engineering-loop evidence, and independent Veritas / canonical receipt / Learning references. It must distinguish:
+A handoff packet must identify the source repository and immutable commit, approved deployment target, supported hosts and protocols, rollback, security and resource requirements, genuine test outcomes, engineering-loop evidence, and independent Veritas / canonical receipt / Learning references.
+
+**Gate contract (Sentinel correction, 2026-11-13):** `evaluateProductionPromotion` now returns a **staged handoff review**, never a physical deployment authorization or successful production rollout. Its historical `qualified: true`, `admitted: true` and digest-shaped handoff fields are untrusted declarations. A host-injected `admissionProvider.verifyOriginalCustody` must independently re-check original Veritas readback, Receipt Authority readback, Creator release grant and the exact source/digest references; otherwise the handoff is blocked. The production host, not untrusted HTTP/task input or this repository, selects that provider. The existing Runtime/Veritas/Receipt/Production authorities remain the only sources of their respective decisions. Source fixture tests can exercise the provider shape but cannot establish a live admission. Owner-authorized deployment, process poststate, rollback and independent acceptance remain separate requirements. It must distinguish:
 
 - `PREPARATION_ONLY`: source and artifacts staged; unresolved admission or target checks.
 - `READY_FOR_PRODUCTION_FABRIC_REVIEW`: artifact/provenance evidence is complete; only Production Fabric's independent release review and deployment remain.
